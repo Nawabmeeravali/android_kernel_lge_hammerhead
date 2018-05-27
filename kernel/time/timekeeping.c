@@ -191,6 +191,7 @@ static void update_rt_offset(void)
 	timekeeper.offs_real = timespec_to_ktime(tmp);
 }
 
+
 /*
  *   tk_update_leap_state - helper to update the next_leap_ktime
  */
@@ -201,6 +202,7 @@ static inline void tk_update_leap_state(struct timekeeper *tk)
 		/* Convert to monotonic time */
 		tk->next_leap_ktime = ktime_sub(tk->next_leap_ktime, tk->offs_real);
 }
+
 
 /* must hold write on timekeeper.lock */
 static void timekeeping_update(bool clearntp)
@@ -781,6 +783,7 @@ static void timekeeping_resume(void)
 	clock->cycle_last = cycle_now;
 	tk->ntp_error = 0;
 	timekeeping_suspended = 0;
+	timekeeping_update(false);
 	write_sequnlock_irqrestore(&timekeeper.lock, flags);
 
 	touch_softlockup_watchdog();
@@ -1048,6 +1051,8 @@ static cycle_t logarithmic_accumulation(cycle_t offset, int shift)
 		leap = second_overflow(timekeeper.xtime.tv_sec);
 		timekeeper.xtime.tv_sec += leap;
 		timekeeper.wall_to_monotonic.tv_sec -= leap;
+		if (leap)
+			clock_was_set_delayed();
 	}
 
 	/* Accumulate raw time */
@@ -1164,6 +1169,8 @@ static void update_wall_time(void)
 		leap = second_overflow(timekeeper.xtime.tv_sec);
 		timekeeper.xtime.tv_sec += leap;
 		timekeeper.wall_to_monotonic.tv_sec -= leap;
+		if (leap)
+			clock_was_set_delayed();
 	}
 
 	timekeeping_update(false);
@@ -1357,7 +1364,6 @@ ktime_t ktime_get_update_offsets(ktime_t *offs_real, ktime_t *offs_boot)
 
 		*offs_real = timekeeper.offs_real;
 		*offs_boot = timekeeper.offs_boot;
-
 		now = ktime_add_ns(ktime_set(secs, 0), nsecs);
 		now = ktime_sub(now, *offs_real);
 
@@ -1366,7 +1372,6 @@ ktime_t ktime_get_update_offsets(ktime_t *offs_real, ktime_t *offs_boot)
 			*offs_real = ktime_sub(timekeeper.offs_real, ktime_set(1, 0));
 
 	} while (read_seqretry(&timekeeper.lock, seq));
-
 	return now;
 }
 #endif
